@@ -1,0 +1,23 @@
+"use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.authRoutes = void 0;
+const express_1 = __importDefault(require("express"));
+const auth_controller_1 = require("../auth/auth.controller");
+const auth_validator_1 = require("./auth.validator");
+const validateInputs_1 = require("../middlewares/validateInputs");
+const rateLimiter_1 = require("../middlewares/rateLimiter");
+const verifyToken_1 = require("../middlewares/verifyToken");
+const router = express_1.default.Router();
+router.get("/get-profile", verifyToken_1.verifyToken, auth_controller_1.getProfile);
+router.post("/login", auth_validator_1.loginValidator, validateInputs_1.validateInputs, auth_controller_1.login);
+router.post("/signup", rateLimiter_1.signupLimiter, auth_validator_1.registrationValidation, validateInputs_1.validateInputs, auth_controller_1.signup);
+router.post("/verify-email", rateLimiter_1.verifyEmailLimiter, auth_validator_1.otpValidator, validateInputs_1.validateInputs, auth_controller_1.verifyEmail);
+router.patch("/forget-password", auth_validator_1.emailValidator, validateInputs_1.validateInputs, auth_controller_1.forgetPassword);
+router.post("/verify-otp", auth_validator_1.otpValidator, validateInputs_1.validateInputs, auth_controller_1.verifyOtpForPassword);
+router.patch("/reset-password/:userId", auth_validator_1.passwordValidator, validateInputs_1.validateInputs, auth_controller_1.resetPassword);
+router.post("/refresh-token", auth_controller_1.refreshAccessToken);
+router.post("/logout", auth_controller_1.logout);
+exports.authRoutes = router;
