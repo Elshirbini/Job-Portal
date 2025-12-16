@@ -47,8 +47,8 @@ export const addJobValidation = [
     .withMessage("employmentType is required")
     .isString()
     .withMessage("employmentType must be string")
-    .isIn(["full-time", "part-time", "freelance", "internship"])
+    .isIn(["fullTime", "partTime", "freelance", "internship"])
     .withMessage(
-      "employmentType must be full-time, part-time, freelance or internship"
+      "employmentType must be fullTime, partTime, freelance or internship"
     ),
 ];

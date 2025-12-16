@@ -8,8 +8,8 @@ const httpLoggerMiddleware = (req, res, next) => {
         const { method, originalUrl } = req;
         const { statusCode } = res;
         const duration = Date.now() - start;
-        const logMessage = `${method} ${originalUrl} ${statusCode} - ${duration}ms`;
-        logger_1.httpLogger.http(logMessage);
+        const logMessage = `${method} ${originalUrl} ${statusCode} - ${duration}ms - ${req.headers["content-length"]} byte`;
+        logger_1.logger.http(logMessage);
     });
     next();
 };

@@ -11,12 +11,15 @@ import { authRoutes } from "./auth/auth.routes";
 import { userRoutes } from "./user/user.routes";
 import { jobRoutes } from "./job/job.routes";
 import i18n from "./config/i18n";
+import { postRoutes } from "./post/post.routes";
 configDotenv();
 
 const app = express();
 
 //                        **Middlewares**
 
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 app.use(httpLoggerMiddleware);
 app.use(
   cors({
@@ -55,6 +58,7 @@ app.use(i18n.init);
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/user", userRoutes);
 app.use("/api/v1/job", jobRoutes);
+app.use("/api/v1/post", postRoutes);
 
 // app.use(express.static(path.join(__dirname, "dist")));
 

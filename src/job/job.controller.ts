@@ -1,8 +1,15 @@
 import { Request, Response } from "express";
 import { ApiError } from "../utils/apiError";
-import { Job } from "./job.model";
 import { success } from "../utils/response";
-import { User } from "../user/user.model";
+import {
+  createJob,
+  createSavedJob,
+  deleteJobBy,
+  deleteSavedJobBy,
+  findJobBy,
+  findJobByAndUpdate,
+  getJobs,
+} from "./job.repository";
 
 export const addJob = async (req: Request, res: Response) => {
   const {
@@ -20,8 +27,8 @@ export const addJob = async (req: Request, res: Response) => {
 
   if (id !== userId) throw new ApiError(req.__("wrong credentials"), 404);
 
-  await Job.create({
-    userId,
+  await createJob({
+    user_id: userId,
     title,
     description,
     requirements,
@@ -49,10 +56,9 @@ export const updateJob = async (req: Request, res: Response) => {
   const { id } = req.params;
   const userId = req.userId;
 
-  const job = await Job.findOneAndUpdate(
-    { _id: id, userId: userId },
+  const job = await findJobByAndUpdate(
+    { job_id: id, user_id: userId },
     {
-      id,
       title,
       description,
       requirements,
@@ -61,8 +67,7 @@ export const updateJob = async (req: Request, res: Response) => {
       benefits,
       attendanceType,
       employmentType,
-    },
-    { new: true, runValidators: true }
+    }
   );
 
   if (!job) throw new ApiError(req.__("Job not found"), 404);
@@ -74,7 +79,7 @@ export const deleteJob = async (req: Request, res: Response) => {
   const { id } = req.params;
   const userId = req.userId;
 
-  const job = await Job.findOneAndDelete({ _id: id, userId: userId });
+  const job = await deleteJobBy({ job_id: id, user_id: userId });
 
   if (!job) throw new ApiError(req.__("Job not found"), 404);
 
@@ -84,7 +89,7 @@ export const deleteJob = async (req: Request, res: Response) => {
 export const getJob = async (req: Request, res: Response) => {
   const { id } = req.params;
 
-  const job = await Job.findById(id).populate("userId", "fullName location");
+  const job = await findJobBy({ job_id: id });
 
   if (!job) throw new ApiError(req.__("Job not found"), 404);
 
@@ -92,27 +97,24 @@ export const getJob = async (req: Request, res: Response) => {
 };
 
 export const getAllJobs = async (req: Request, res: Response) => {
-  const jobs = await Job.find();
+  const jobs = await getJobs();
 
   return success(res, 200, { jobs });
 };
 
 export const saveJob = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const userId = req.userId;
+  const userId = req.userId!;
 
-  const job = await Job.findById(id).select("_id");
+  const job = await findJobBy({ job_id: id });
   if (!job) throw new ApiError(req.__("Job not found"), 404);
 
-  const user = await User.findByIdAndUpdate(
-    userId,
-    { $addToSet: { savedJob: job._id } },
-    { new: true, runValidators: true }
-  );
-  if (!user) throw new ApiError(req.__("User not found"), 404);
+  await createSavedJob({
+    user_id: userId,
+    job_id: id,
+  });
 
-  job.numOfSaves += 1;
-  await job.save();
+  await findJobByAndUpdate({ job_id: id }, { numOfSaves: { increment: 1 } });
 
   return success(res, 200, { message: "Job saved successfully" });
 };
@@ -121,19 +123,16 @@ export const unsaveJob = async (req: Request, res: Response) => {
   const { id } = req.params;
   const userId = req.userId;
 
-  const job = await Job.findById(id).select("_id");
+  const job = await findJobBy({ job_id: id });
   if (!job) throw new ApiError(req.__("Job not found"), 404);
 
-  const user = await User.findByIdAndUpdate(
-    userId,
-    { $pull: { savedJob: job._id } },
-    { new: true, runValidators: true }
-  );
-  if (!user) throw new ApiError(req.__("User not found"), 404);
+  const savedJob = await deleteSavedJobBy({ user_id: userId, job_id: id });
+  if (!savedJob) {
+    throw new ApiError(req.__("Saved job record not found"), 404);
+  }
 
   if (job.numOfSaves > 0) {
-    job.numOfSaves -= 1;
-    await job.save();
+    await findJobByAndUpdate({ job_id: id }, { numOfSaves: { decrement: 1 } });
   }
 
   return success(res, 200, { message: "Job saved successfully" });

@@ -25,11 +25,11 @@ const sendToEmails = async (email, subject, html) => {
     };
     try {
         const info = await transporter.sendMail(mailOptions);
-        console.log("Email sent: " + info.response);
+        logger_1.logger.info("Email sent: " + info.response);
         return info;
     }
     catch (error) {
-        logger_1.errorLogger.error(error);
+        logger_1.logger.error(error);
         throw new apiError_1.ApiError("This email is invalid, please try another one", 403);
     }
 };

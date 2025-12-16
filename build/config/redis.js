@@ -13,5 +13,5 @@ const redisClient = (0, redis_1.createClient)({
 });
 redisClient.on("error", (err) => console.error("Redis Client Error", err));
 redisClient.connect();
-logger_1.infoLogger.info("Connected to Redis");
+logger_1.logger.info("Connected to Redis");
 exports.default = redisClient;

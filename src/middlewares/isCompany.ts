@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
-import { User } from "../user/user.model";
 import { ApiError } from "../utils/apiError";
+import { findUserBy } from "../user/user.repository";
 
 export const isCompany = async (
   req: Request,
@@ -8,7 +8,7 @@ export const isCompany = async (
   next: NextFunction
 ) => {
   const userId = req.userId;
-  const user = await User.findById(userId);
+  const user = await findUserBy({ user_id: userId });
   if (!user) throw new ApiError(req.__("User not found"), 404);
 
   if (user.type !== "company") {

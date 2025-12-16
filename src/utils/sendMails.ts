@@ -1,7 +1,7 @@
 import nodemailer from "nodemailer";
 import { ApiError } from "./apiError";
 import { configDotenv } from "dotenv";
-import { errorLogger } from "../config/logger";
+import { logger } from "../config/logger";
 configDotenv();
 
 const transporter = nodemailer.createTransport({
@@ -25,10 +25,10 @@ export const sendToEmails = async (
   };
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log("Email sent: " + info.response);
+    logger.info("Email sent: " + info.response);
     return info;
   } catch (error) {
-    errorLogger.error(error);
+    logger.error(error);
     throw new ApiError("This email is invalid, please try another one", 403);
   }
 };

@@ -1,34 +1,78 @@
+// logger.ts
 import winston from "winston";
+import "winston-daily-rotate-file";
 
-const { combine, timestamp, printf, colorize } = winston.format;
+const { combine, timestamp, printf, colorize, errors, splat } = winston.format;
 
-const logFormat = printf(({ level, message, timestamp }) => {
-  return `[${timestamp}] ${level}: ${message}`;
+// custom levels including 'http'
+const levels = {
+  error: 0,
+  warn: 1,
+  info: 2,
+  http: 3,
+  debug: 4,
+};
+
+winston.addColors({
+  error: "red",
+  warn: "yellow",
+  info: "green",
+  http: "magenta",
+  debug: "gray",
+});
+
+const logFormat = printf((info) => {
+  const { level, timestamp } = info;
+  let msg: any = info.stack || info.message;
+
+  // لو مش primitive → حاول نحوله JSON
+  if (msg !== null && typeof msg === "object") {
+    try {
+      msg = JSON.stringify(msg);
+    } catch {
+      msg = "[Unserializable object]";
+    }
+  }
+
+  // safety net إجباري
+  msg = String(msg);
+
+  return `[${timestamp}] ${level}: ${msg}`;
 });
 
 const baseFormat = combine(
-  colorize(),
   timestamp({ format: "YYYY-MM-DD HH:mm:ss" }),
+  errors({ stack: true }),
+  splat(),
   logFormat
 );
 
-// Logger للمستوى info فقط
-export const infoLogger = winston.createLogger({
-  level: "info",
-  format: baseFormat,
-  transports: [new winston.transports.Console({ level: "info" })],
+const consoleFormat = combine(colorize({ all: true }), baseFormat);
+
+const dailyRotate = new (winston.transports as any).DailyRotateFile({
+  dirname: "logs",              // same folder
+  filename: "app-%DATE%.log",   // one file per day
+  datePattern: "YYYY-MM-DD",
+  zippedArchive: true,
+  maxSize: "20m",
+  maxFiles: "14d",              // keep 14 days of logs
+  level: "debug",               // include EVERYTHING
 });
 
-// Logger للمستوى http فقط
-export const httpLogger = winston.createLogger({
-  level: "http",
+export const logger = winston.createLogger({
+  levels,
   format: baseFormat,
-  transports: [new winston.transports.Console({ level: "http" })],
+  transports: [
+    new winston.transports.Console({
+      format: consoleFormat,
+    }),
+    dailyRotate,
+  ],
 });
 
-// Logger للمستوى error فقط
-export const errorLogger = winston.createLogger({
-  level: "error",
-  format: baseFormat,
-  transports: [new winston.transports.Console({ level: "error" })],
-});
+// For HTTP logging (express)
+export const loggerStream = {
+  write: (message: string) => {
+    logger.http(message.trim());
+  },
+};

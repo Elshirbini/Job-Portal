@@ -1,11 +1,11 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.isCompany = void 0;
-const user_model_1 = require("../user/user.model");
 const apiError_1 = require("../utils/apiError");
+const user_repository_1 = require("../user/user.repository");
 const isCompany = async (req, res, next) => {
     const userId = req.userId;
-    const user = await user_model_1.User.findById(userId);
+    const user = await (0, user_repository_1.findUserBy)({ user_id: userId });
     if (!user)
         throw new apiError_1.ApiError(req.__("User not found"), 404);
     if (user.type !== "company") {

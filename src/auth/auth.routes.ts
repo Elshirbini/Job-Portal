@@ -24,15 +24,19 @@ import {
   verifyEmailLimiter,
 } from "../middlewares/rateLimiter";
 import { verifyToken } from "../middlewares/verifyToken";
+import { upload } from "../config/multerMemory";
+import { validateFiles } from "../middlewares/validateFiles";
 
 const router = express.Router();
 
-router.get("/get-profile", verifyToken, getProfile);
+router.get("/profile", verifyToken, getProfile);
 
 router.post("/login", loginValidator, validateInputs, login);
 router.post(
   "/signup",
   signupLimiter,
+  upload.single("image"),
+  validateFiles,
   registrationValidation,
   validateInputs,
   signup

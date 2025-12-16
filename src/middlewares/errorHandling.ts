@@ -1,7 +1,6 @@
 import { NextFunction, Request, Response } from "express";
-import { errorLogger } from "../config/logger";
+import { logger } from "../config/logger";
 import { ApiError } from "../utils/apiError";
-import { success } from "../utils/response";
 
 export const errorHandling = (
   err: ApiError,
@@ -9,7 +8,7 @@ export const errorHandling = (
   res: Response,
   next: NextFunction
 ) => {
-  errorLogger.error(err);
+  logger.error(err);
   err.statusCode = err.statusCode || 500;
 
   if (process.env.NODE_ENV === "dev") {

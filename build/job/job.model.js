@@ -46,5 +46,5 @@ const job = new mongoose_1.Schema({
         type: Number,
         default: 0,
     },
-});
+}, { timestamps: true });
 exports.Job = (0, mongoose_1.model)("jobs", job);

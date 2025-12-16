@@ -1,8 +1,8 @@
 import jwt from "jsonwebtoken";
 import { configDotenv } from "dotenv";
 import { ApiError } from "../utils/apiError";
-import { User } from "../user/user.model";
 import { NextFunction, Request, Response } from "express";
+import { findUserBy } from "../user/user.repository";
 
 configDotenv();
 
@@ -28,7 +28,7 @@ export const verifyToken = async (
   req.userId = user.id;
   req.userRole = user.role;
 
-  const userDoc = await User.findById(user.id);
+  const userDoc = await findUserBy({ user_id: user.id });
   if (!userDoc) return next(new ApiError(req.__("User not found"), 404));
   next();
 };

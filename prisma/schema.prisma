@@ -1,0 +1,120 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  user
+  admin
+}
+
+enum UserType {
+  individual
+  company
+}
+
+enum AttendanceType {
+  remote
+  hybrid
+  onSite
+}
+
+enum EmploymentType {
+  fullTime
+  partTime
+  freelance
+  internship
+}
+
+enum Privacy {
+  public
+  friends
+  private
+}
+
+model User {
+  user_id              String     @id @default(uuid()) @db.Uuid
+  google_id            String?    @unique
+  full_name            String
+  email                String     @unique
+  phone                String?    @unique
+  password             String?
+  location             String?
+  imageKey             String?
+  imageUrl             String?
+  role                 UserRole   @default(user)
+  type                 UserType   @default(individual)
+  is_verified          Boolean    @default(false)
+  codeValidation       String?
+  codeValidationExpire DateTime?
+  jobs                 Job[]
+  savedJobs            SavedJob[]
+  posts                Post[]
+  created_at           DateTime   @default(now())
+  updated_at           DateTime   @updatedAt
+}
+
+model Job {
+  job_id              String         @id @default(uuid()) @db.Uuid
+  user                User           @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  user_id             String         @db.Uuid
+  savedBy             SavedJob[]
+  title               String
+  description         String
+  requirements        String[]
+  keyResponsibilities String[]
+  qualifications      String[]
+  benefits            String[]
+  attendanceType      AttendanceType
+  employmentType      EmploymentType
+  numOfSaves          Int            @default(0)
+  created_at          DateTime       @default(now())
+  updated_at          DateTime       @updatedAt
+}
+
+model SavedJob {
+  saved_job_id String @id @default(uuid()) @db.Uuid
+
+  user    User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  user_id String @db.Uuid
+
+  job    Job    @relation(fields: [job_id], references: [job_id], onDelete: Cascade)
+  job_id String @db.Uuid
+
+  created_at DateTime @default(now())
+
+  @@unique([user_id, job_id])
+}
+
+model JobImage {
+  id String @id @default(uuid()) @db.Uuid
+
+  post    Post   @relation(fields: [post_id], references: [post_id], onDelete: Cascade)
+  post_id String @db.Uuid
+
+  imageKey String
+  imageUrl String
+
+  created_at DateTime @default(now())
+}
+
+model Post {
+  post_id String @id @default(uuid()) @db.Uuid
+
+  user    User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
+  user_id String @db.Uuid
+
+  privacy  Privacy    @default(public)
+  text     String
+  images   JobImage[]
+  videoKey String?
+  videoUrl String?
+  docKey   String?
+  docUrl   String?
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+}

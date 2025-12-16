@@ -1,22 +1,31 @@
 import app from "./app";
 import dotenv from "dotenv";
-import { dbConnection } from "./config/dbConnection";
-import { errorLogger } from "./config/logger";
+import { logger } from "./config/logger";
+import { prisma } from "./prisma";
 dotenv.config();
 
-app.listen(8080, "0.0.0.0", () => {
-  dbConnection();
-  console.log(`🚀 Server running on PORT:${process.env.PORT}`);
-});
+async function start() {
+  try {
+    await prisma.$connect();
+    logger.info("✅ Prisma connected to PostgreSQL successfully!");
+
+    app.listen(8080, "0.0.0.0", () => {
+      logger.info(`🚀 Server running on PORT:${process.env.PORT}`);
+    });
+  } catch (error) {
+    logger.error("❌ Failed to connect to the database:", error);
+    process.exit(1);
+  }
+}
+
+start();
 
 process.on("unhandledRejection", (err: Error) => {
-  errorLogger.error(
-    `Unhandled Rejection Errors : ${err.name} | ${err.message}`
-  );
+  logger.error(`Unhandled Rejection Errors : ${err.name} | ${err.message}`);
   process.exit(1);
 });
 
 process.on("uncaughtException", (err) => {
-  errorLogger.error(`Unhandled Caught Errors : ${err.name} | ${err.message}`);
+  logger.error(`Unhandled Caught Errors : ${err.name} | ${err.message}`);
   process.exit(1);
 });

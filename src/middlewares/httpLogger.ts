@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from "express";
-import { httpLogger } from "../config/logger";
+import { logger } from "../config/logger";
 
 export const httpLoggerMiddleware = (
   req: Request,
@@ -13,8 +13,8 @@ export const httpLoggerMiddleware = (
     const { statusCode } = res;
     const duration = Date.now() - start;
 
-    const logMessage = `${method} ${originalUrl} ${statusCode} - ${duration}ms`;
-    httpLogger.http(logMessage);
+    const logMessage = `${method} ${originalUrl} ${statusCode} - ${duration}ms - ${req.headers["content-length"]} byte`;
+    logger.http(logMessage);
   });
 
   next();

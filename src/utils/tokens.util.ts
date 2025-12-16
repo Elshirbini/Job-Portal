@@ -1,10 +1,10 @@
 import jwt from "jsonwebtoken";
 import { ApiError } from "./apiError";
 
-export const generateRefreshToken = async (_id: string) => {
+export const generateRefreshToken = async (id: string) => {
   const token = await new Promise((resolve, reject) => {
     jwt.sign(
-      { id: _id },
+      { id },
       process.env.REFRESH_TOKEN_SECRET!,
       {
         expiresIn: "7d",
@@ -18,10 +18,10 @@ export const generateRefreshToken = async (_id: string) => {
   return token;
 };
 
-export const generateAccessToken = async (_id: string, role: string) => {
+export const generateAccessToken = async (id: string, role: string) => {
   const token = await new Promise((resolve, reject) => {
     jwt.sign(
-      { id: _id, role },
+      { id, role },
       process.env.ACCESS_TOKEN_SECRET!,
       {
         expiresIn: "15m",

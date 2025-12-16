@@ -6,7 +6,6 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.logout = exports.refreshAccessToken = exports.resetPassword = exports.verifyOtpForPassword = exports.forgetPassword = exports.verifyEmail = exports.signup = exports.login = exports.getProfile = void 0;
 const apiError_1 = require("../utils/apiError");
 const redis_1 = __importDefault(require("../config/redis"));
-const user_model_1 = require("../user/user.model");
 const generateOTP_1 = require("../utils/generateOTP");
 const bcrypt_1 = require("bcrypt");
 const crypto_1 = __importDefault(require("crypto"));
@@ -14,6 +13,8 @@ const jsonwebtoken_1 = __importDefault(require("jsonwebtoken"));
 const sendMails_1 = require("../utils/sendMails");
 const tokens_util_1 = require("../utils/tokens.util");
 const response_1 = require("../utils/response");
+const user_repository_1 = require("../user/user.repository");
+const cloudflareR2_1 = require("../services/cloudflareR2");
 const refreshCookieOptions = {
     maxAge: 7 * 24 * 60 * 60 * 1000,
     httpOnly: true,
@@ -28,7 +29,7 @@ const accessCookieOptions = {
 };
 const getProfile = async (req, res) => {
     const userId = req.userId;
-    const user = await user_model_1.User.findById(userId);
+    const user = await (0, user_repository_1.findUserBy)({ user_id: userId });
     if (!user)
         throw new apiError_1.ApiError(req.__("User not found"), 404);
     res.status(200).json({ user });
@@ -36,40 +37,68 @@ const getProfile = async (req, res) => {
 exports.getProfile = getProfile;
 const login = async (req, res) => {
     const { email, password } = req.body;
-    const user = await user_model_1.User.findOne({ email: email });
+    const user = await (0, user_repository_1.findUserBy)({ email: email, is_verified: true });
     if (!user)
         throw new apiError_1.ApiError(req.__("User not found"), 404);
-    if (!user.password && user.googleId) {
+    if (!user.password && user.google_id) {
         res.redirect("http://localhost:8080/auth/google");
     }
     const isPassEq = await (0, bcrypt_1.compare)(password, user.password);
     if (!isPassEq)
         throw new apiError_1.ApiError(req.__("Password Wrong"), 401);
-    const accessToken = await (0, tokens_util_1.generateAccessToken)(user._id.toString(), user.role);
-    const refreshToken = await (0, tokens_util_1.generateRefreshToken)(user._id.toString());
+    const accessToken = await (0, tokens_util_1.generateAccessToken)(user.user_id.toString(), user.role);
+    const refreshToken = await (0, tokens_util_1.generateRefreshToken)(user.user_id.toString());
     res.cookie("refreshToken", refreshToken, refreshCookieOptions);
     res.cookie("accessToken", accessToken, accessCookieOptions);
     return (0, response_1.success)(res, 200, {
         message: "Login successfully",
-        name: user.fullName,
-        role: user.role === "admin" ? "admin" : "user",
+        data: {
+            name: user.full_name,
+            role: user.role === "admin" ? "admin" : "user",
+        },
     });
 };
 exports.login = login;
 const signup = async (req, res) => {
     const { type, fullName, email, location, password, rePassword } = req.body;
+    const file = req.file;
+    let image = {};
+    let user = {};
     if (password !== rePassword) {
         throw new apiError_1.ApiError(req.__("Password and rePassword must be equal"), 401);
     }
-    const isExist = await user_model_1.User.findOne({ email: email });
-    if (isExist)
-        throw new apiError_1.ApiError(req.__("This email is already exist"), 403);
+    const isExist = await (0, user_repository_1.findUserBy)({ email: email });
+    if (isExist && isExist.is_verified) {
+        throw new apiError_1.ApiError(req.__("This account is already exist"), 403);
+    }
     const otp = (0, generateOTP_1.generateOTP)();
     if (type === "company" && !location) {
         throw new apiError_1.ApiError("Location is required", 403);
     }
-    const userData = { type, fullName, email, password, location };
-    redis_1.default.setEx(`${otp}`, 300, JSON.stringify(userData));
+    if (file) {
+        const cloudflareR2 = new cloudflareR2_1.CloudflareService();
+        const { url, key } = await cloudflareR2.uploadFileS3(file.buffer, `profile-images/${Date.now()}`, file.mimetype);
+        image.url = url;
+        image.key = key;
+    }
+    const hashedPassword = await (0, bcrypt_1.hash)(password, 10);
+    const userData = {
+        type,
+        full_name: fullName,
+        email,
+        password: hashedPassword,
+        location,
+        imageKey: image.key,
+        imageUrl: image.url,
+        is_verified: false,
+    };
+    if (isExist && !isExist.is_verified) {
+        user = await (0, user_repository_1.findUserByAndUpdate)({ email: email }, userData);
+    }
+    else {
+        user = await (0, user_repository_1.createUser)(userData);
+    }
+    redis_1.default.setEx(`${otp}`, 300, JSON.stringify({ user_id: user.user_id }));
     await (0, sendMails_1.sendToEmails)(email, "Account Verification - Your OTP Code", `
     <div style="font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f4;">
       <div style="max-width: 600px; margin: auto; background-color: #ffffff; padding: 30px; border-radius: 10px; box-shadow: 0 0 10px rgba(0,0,0,0.1);">
@@ -90,7 +119,7 @@ const signup = async (req, res) => {
       </div>
     </div>
   `);
-    return (0, response_1.success)(res, 200, { message: "OTP sent" });
+    return (0, response_1.success)(res, 200, "OTP sent");
 };
 exports.signup = signup;
 const verifyEmail = async (req, res) => {
@@ -100,18 +129,13 @@ const verifyEmail = async (req, res) => {
         throw new apiError_1.ApiError(req.__("Invalid or expired verification code"), 403);
     }
     const parsedData = JSON.parse(userData);
-    const { type, email, fullName, password, location } = parsedData;
-    const hashedPassword = await (0, bcrypt_1.hash)(password, 12);
-    const createData = {
-        type,
-        fullName,
-        email,
-        location,
-        password: hashedPassword,
-    };
-    await user_model_1.User.create(createData);
+    const { user_id } = parsedData;
+    const user = await (0, user_repository_1.findUserByAndUpdate)({ user_id: user_id }, { is_verified: true });
+    if (!user) {
+        throw new apiError_1.ApiError(req.__("User not found"), 404);
+    }
     await redis_1.default.del(`${otp}`);
-    await (0, sendMails_1.sendToEmails)(email, "✅ Account Created Successfully", `
+    await (0, sendMails_1.sendToEmails)(user.email, "✅ Account Created Successfully", `
   <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
     <h2 style="color: #28a745;">🎉 Account Created Successfully!</h2>
     <p style="font-size: 16px; color: #333;">Hi there,</p>
@@ -123,37 +147,34 @@ const verifyEmail = async (req, res) => {
     <p style="font-size: 12px; color: #aaa;">Thank you for joining us!</p>
   </div>
   `);
-    return (0, response_1.success)(res, 201, { message: "Account created successfully" });
+    return (0, response_1.success)(res, 201, "Account verified successfully");
 };
 exports.verifyEmail = verifyEmail;
 const forgetPassword = async (req, res) => {
     const { email } = req.body;
     const otp = (0, generateOTP_1.generateOTP)();
     const cryptOtp = crypto_1.default.createHash("sha256").update(otp).digest("hex");
-    const user = await user_model_1.User.findOneAndUpdate({ email: email }, {
+    const user = await (0, user_repository_1.findUserByAndUpdate)({ email: email }, {
         codeValidation: cryptOtp,
         codeValidationExpire: new Date(Date.now() + 5 * 60 * 1000),
-    }, {
-        new: true,
-        runValidators: true,
     });
     if (!user)
         throw new apiError_1.ApiError(req.__("This email has no account"), 404);
     await (0, sendMails_1.sendToEmails)(email, "OTP", otp);
-    return (0, response_1.success)(res, 200, { message: "Code sent successfully" });
+    return (0, response_1.success)(res, 200, "Code sent successfully");
 };
 exports.forgetPassword = forgetPassword;
 const verifyOtpForPassword = async (req, res) => {
     const { otp } = req.body;
     const cryptOtp = crypto_1.default.createHash("sha256").update(`${otp}`).digest("hex");
-    const user = await user_model_1.User.findOne({
+    const user = await (0, user_repository_1.findUserBy)({
         codeValidation: cryptOtp,
-        codeValidationExpire: { $gt: Date.now() },
+        codeValidationExpire: { gt: Date.now() },
     });
     if (!user) {
         throw new apiError_1.ApiError(req.__("Invalid or expired verification code"), 401);
     }
-    return (0, response_1.success)(res, 200, { userId: user._id });
+    return (0, response_1.success)(res, 200, { data: { userId: user.user_id } });
 };
 exports.verifyOtpForPassword = verifyOtpForPassword;
 const resetPassword = async (req, res) => {
@@ -162,7 +183,7 @@ const resetPassword = async (req, res) => {
     if (newPassword !== confirmNewPassword) {
         throw new apiError_1.ApiError(req.__("Password and rePassword must be equal"), 403);
     }
-    const userDoc = await user_model_1.User.findById(userId);
+    const userDoc = await (0, user_repository_1.findUserBy)({ user_id: userId });
     if (!userDoc || !userDoc.password)
         throw new apiError_1.ApiError(req.__("User not found"), 404);
     const isSet = await (0, bcrypt_1.compare)(newPassword, userDoc.password);
@@ -170,20 +191,15 @@ const resetPassword = async (req, res) => {
         throw new apiError_1.ApiError(req.__("This password has already exists"), 403);
     }
     const hashedPassword = await (0, bcrypt_1.hash)(newPassword, 12);
-    const user = await user_model_1.User.findByIdAndUpdate(userId, {
+    const user = await (0, user_repository_1.findUserByAndUpdate)({ user_id: userId }, {
         password: hashedPassword,
         codeValidation: undefined,
         codeValidationExpire: undefined,
-    }, {
-        new: true,
-        runValidators: true,
     });
     if (!user) {
         throw new apiError_1.ApiError(req.__("Invalid or expired verification code"), 401);
     }
-    return (0, response_1.success)(res, 200, {
-        message: "Your password change successfully",
-    });
+    return (0, response_1.success)(res, 200, "Your password change successfully");
 };
 exports.resetPassword = resetPassword;
 const refreshAccessToken = async (req, res, next) => {
@@ -193,10 +209,10 @@ const refreshAccessToken = async (req, res, next) => {
     const payload = jsonwebtoken_1.default.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
     if (!payload)
         return next(new apiError_1.ApiError(req.__("Token is not valid"), 401));
-    const user = await user_model_1.User.findById(payload.id);
+    const user = await (0, user_repository_1.findUserBy)({ user_id: payload.id });
     if (!user)
         return next(new apiError_1.ApiError(req.__("User not found"), 404));
-    const newAccessToken = await (0, tokens_util_1.generateAccessToken)(user._id.toString(), user.role);
+    const newAccessToken = await (0, tokens_util_1.generateAccessToken)(user.user_id.toString(), user.role);
     res.cookie("accessToken", newAccessToken, accessCookieOptions);
     return (0, response_1.success)(res, 200, { message: "Access token updated" });
 };
@@ -204,6 +220,6 @@ exports.refreshAccessToken = refreshAccessToken;
 const logout = async (req, res) => {
     res.clearCookie("refreshToken");
     res.clearCookie("accessToken");
-    return (0, response_1.success)(res, 200, { message: "Logged out successfully" });
+    return (0, response_1.success)(res, 200, "Logged out successfully");
 };
 exports.logout = logout;

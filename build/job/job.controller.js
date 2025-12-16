@@ -4,7 +4,6 @@ exports.unsaveJob = exports.saveJob = exports.getAllJobs = exports.getJob = expo
 const apiError_1 = require("../utils/apiError");
 const job_model_1 = require("./job.model");
 const response_1 = require("../utils/response");
-const user_model_1 = require("../user/user.model");
 const addJob = async (req, res) => {
     const { title, description, requirements, qualifications, keyResponsibilities, benefits, attendanceType, employmentType, } = req.body;
     const { id } = req.params;
@@ -73,9 +72,12 @@ const saveJob = async (req, res) => {
     const job = await job_model_1.Job.findById(id).select("_id");
     if (!job)
         throw new apiError_1.ApiError(req.__("Job not found"), 404);
-    const user = await user_model_1.User.findByIdAndUpdate(userId, { $addToSet: { savedJob: job._id } }, { new: true, runValidators: true });
-    if (!user)
-        throw new apiError_1.ApiError(req.__("User not found"), 404);
+    // const user = await User.findByIdAndUpdate(
+    //   userId,
+    //   { $addToSet: { savedJob: job._id } },
+    //   { new: true, runValidators: true }
+    // );
+    // if (!user) throw new ApiError(req.__("User not found"), 404);
     job.numOfSaves += 1;
     await job.save();
     return (0, response_1.success)(res, 200, { message: "Job saved successfully" });
@@ -87,9 +89,12 @@ const unsaveJob = async (req, res) => {
     const job = await job_model_1.Job.findById(id).select("_id");
     if (!job)
         throw new apiError_1.ApiError(req.__("Job not found"), 404);
-    const user = await user_model_1.User.findByIdAndUpdate(userId, { $pull: { savedJob: job._id } }, { new: true, runValidators: true });
-    if (!user)
-        throw new apiError_1.ApiError(req.__("User not found"), 404);
+    // const user = await User.findByIdAndUpdate(
+    //   userId,
+    //   { $pull: { savedJob: job._id } },
+    //   { new: true, runValidators: true }
+    // );
+    // if (!user) throw new ApiError(req.__("User not found"), 404);
     if (job.numOfSaves > 0) {
         job.numOfSaves -= 1;
         await job.save();

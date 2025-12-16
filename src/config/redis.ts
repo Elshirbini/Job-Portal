@@ -1,5 +1,5 @@
 import { createClient } from "redis";
-import { infoLogger } from "./logger";
+import { logger } from "./logger";
 import { configDotenv } from "dotenv";
 configDotenv();
 
@@ -15,6 +15,6 @@ redisClient.on("error", (err) => console.error("Redis Client Error", err));
 
 redisClient.connect();
 
-infoLogger.info("Connected to Redis");
+logger.info("Connected to Redis");
 
 export default redisClient;

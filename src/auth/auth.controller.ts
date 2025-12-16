@@ -1,6 +1,5 @@
 import { ApiError } from "../utils/apiError";
 import redisClient from "../config/redis";
-import { User } from "../user/user.model";
 import { generateOTP } from "../utils/generateOTP";
 import { hash, compare } from "bcrypt";
 import crypto from "crypto";
@@ -12,6 +11,15 @@ import {
 } from "../utils/tokens.util";
 import { NextFunction, Request, Response } from "express";
 import { success } from "../utils/response";
+import {
+  createUser,
+  findUserBy,
+  findUserByAndUpdate,
+} from "../user/user.repository";
+import { CloudflareService } from "../services/cloudflareR2";
+import { logger } from "../config/logger";
+import { Prisma } from "@prisma/client";
+import { IUser } from "../user/interfaces/user.interface";
 
 const refreshCookieOptions = {
   maxAge: 7 * 24 * 60 * 60 * 1000,
@@ -29,7 +37,7 @@ const accessCookieOptions = {
 export const getProfile = async (req: Request, res: Response) => {
   const userId = req.userId;
 
-  const user = await User.findById(userId);
+  const user = await findUserBy({ user_id: userId });
   if (!user) throw new ApiError(req.__("User not found"), 404);
 
   res.status(200).json({ user });
@@ -38,39 +46,50 @@ export const getProfile = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
-  const user = await User.findOne({ email: email });
+  const user = await findUserBy({ email: email, is_verified: true });
 
   if (!user) throw new ApiError(req.__("User not found"), 404);
 
-  if (!user.password && user.googleId) {
+  if (!user.password && user.google_id) {
     res.redirect("http://localhost:8080/auth/google");
   }
 
   const isPassEq = await compare(password, user.password!);
   if (!isPassEq) throw new ApiError(req.__("Password Wrong"), 401);
 
-  const accessToken = await generateAccessToken(user._id.toString(), user.role);
-  const refreshToken = await generateRefreshToken(user._id.toString());
+  const accessToken = await generateAccessToken(
+    user.user_id.toString(),
+    user.role
+  );
+  const refreshToken = await generateRefreshToken(user.user_id.toString());
 
   res.cookie("refreshToken", refreshToken, refreshCookieOptions);
   res.cookie("accessToken", accessToken, accessCookieOptions);
 
   return success(res, 200, {
     message: "Login successfully",
-    name: user.fullName,
-    role: user.role === "admin" ? "admin" : "user",
+    data: {
+      name: user.full_name,
+      role: user.role === "admin" ? "admin" : "user",
+    },
   });
 };
 
 export const signup = async (req: Request, res: Response) => {
   const { type, fullName, email, location, password, rePassword } = req.body;
+  const file = req.file;
+  let image: { url?: string; key?: string } = {};
+  let user: Partial<IUser> = {};
 
   if (password !== rePassword) {
     throw new ApiError(req.__("Password and rePassword must be equal"), 401);
   }
 
-  const isExist = await User.findOne({ email: email });
-  if (isExist) throw new ApiError(req.__("This email is already exist"), 403);
+  const isExist = await findUserBy({ email: email });
+
+  if (isExist && isExist.is_verified) {
+    throw new ApiError(req.__("This account is already exist"), 403);
+  }
 
   const otp = generateOTP();
 
@@ -78,9 +97,38 @@ export const signup = async (req: Request, res: Response) => {
     throw new ApiError("Location is required", 403);
   }
 
-  const userData = { type, fullName, email, password, location };
+  if (file) {
+    const cloudflareR2 = new CloudflareService();
 
-  redisClient.setEx(`${otp}`, 300, JSON.stringify(userData));
+    const { url, key } = await cloudflareR2.uploadFileS3(
+      file.buffer,
+      `profile-images/${Date.now()}`,
+      file.mimetype
+    );
+    image.url = url;
+    image.key = key;
+  }
+
+  const hashedPassword = await hash(password, 10);
+
+  const userData = {
+    type,
+    full_name: fullName,
+    email,
+    password: hashedPassword,
+    location,
+    imageKey: image.key,
+    imageUrl: image.url,
+    is_verified: false,
+  };
+
+  if (isExist && !isExist.is_verified) {
+    user = await findUserByAndUpdate({ email: email }, userData);
+  } else {
+    user = await createUser(userData);
+  }
+
+  redisClient.setEx(`${otp}`, 300, JSON.stringify({ user_id: user.user_id }));
 
   await sendToEmails(
     email,
@@ -107,7 +155,7 @@ export const signup = async (req: Request, res: Response) => {
   `
   );
 
-  return success(res, 200, { message: "OTP sent" });
+  return success(res, 200, "OTP sent");
 };
 
 export const verifyEmail = async (req: Request, res: Response) => {
@@ -120,24 +168,21 @@ export const verifyEmail = async (req: Request, res: Response) => {
 
   const parsedData = JSON.parse(userData);
 
-  const { type, email, fullName, password, location } = parsedData;
+  const { user_id } = parsedData;
 
-  const hashedPassword = await hash(password, 12);
+  const user = await findUserByAndUpdate(
+    { user_id: user_id },
+    { is_verified: true }
+  );
 
-  const createData = {
-    type,
-    fullName,
-    email,
-    location,
-    password: hashedPassword,
-  };
-
-  await User.create(createData);
+  if (!user) {
+    throw new ApiError(req.__("User not found"), 404);
+  }
 
   await redisClient.del(`${otp}`);
 
   await sendToEmails(
-    email,
+    user.email,
     "✅ Account Created Successfully",
     `
   <div style="font-family: Arial, sans-serif; line-height: 1.6; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #ddd; border-radius: 10px;">
@@ -153,7 +198,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
   `
   );
 
-  return success(res, 201, { message: "Account created successfully" });
+  return success(res, 201, "Account verified successfully");
 };
 
 export const forgetPassword = async (req: Request, res: Response) => {
@@ -162,15 +207,11 @@ export const forgetPassword = async (req: Request, res: Response) => {
   const otp = generateOTP();
   const cryptOtp = crypto.createHash("sha256").update(otp).digest("hex");
 
-  const user = await User.findOneAndUpdate(
+  const user = await findUserByAndUpdate(
     { email: email },
     {
       codeValidation: cryptOtp,
       codeValidationExpire: new Date(Date.now() + 5 * 60 * 1000),
-    },
-    {
-      new: true,
-      runValidators: true,
     }
   );
 
@@ -178,7 +219,7 @@ export const forgetPassword = async (req: Request, res: Response) => {
 
   await sendToEmails(email, "OTP", otp);
 
-  return success(res, 200, { message: "Code sent successfully" });
+  return success(res, 200, "Code sent successfully");
 };
 
 export const verifyOtpForPassword = async (req: Request, res: Response) => {
@@ -186,16 +227,16 @@ export const verifyOtpForPassword = async (req: Request, res: Response) => {
 
   const cryptOtp = crypto.createHash("sha256").update(`${otp}`).digest("hex");
 
-  const user = await User.findOne({
+  const user = await findUserBy({
     codeValidation: cryptOtp,
-    codeValidationExpire: { $gt: Date.now() },
+    codeValidationExpire: { gt: Date.now() },
   });
 
   if (!user) {
     throw new ApiError(req.__("Invalid or expired verification code"), 401);
   }
 
-  return success(res, 200, { userId: user._id });
+  return success(res, 200, { data: { userId: user.user_id } });
 };
 
 export const resetPassword = async (req: Request, res: Response) => {
@@ -206,7 +247,7 @@ export const resetPassword = async (req: Request, res: Response) => {
     throw new ApiError(req.__("Password and rePassword must be equal"), 403);
   }
 
-  const userDoc = await User.findById(userId);
+  const userDoc = await findUserBy({ user_id: userId });
   if (!userDoc || !userDoc.password)
     throw new ApiError(req.__("User not found"), 404);
 
@@ -217,16 +258,12 @@ export const resetPassword = async (req: Request, res: Response) => {
 
   const hashedPassword = await hash(newPassword, 12);
 
-  const user = await User.findByIdAndUpdate(
-    userId,
+  const user = await findUserByAndUpdate(
+    { user_id: userId },
     {
       password: hashedPassword,
       codeValidation: undefined,
       codeValidationExpire: undefined,
-    },
-    {
-      new: true,
-      runValidators: true,
     }
   );
 
@@ -234,9 +271,7 @@ export const resetPassword = async (req: Request, res: Response) => {
     throw new ApiError(req.__("Invalid or expired verification code"), 401);
   }
 
-  return success(res, 200, {
-    message: "Your password change successfully",
-  });
+  return success(res, 200, "Your password change successfully");
 };
 
 export const refreshAccessToken = async (
@@ -245,7 +280,8 @@ export const refreshAccessToken = async (
   next: NextFunction
 ) => {
   const refreshToken = req.cookies["refreshToken"];
-  if (!refreshToken) return next(new ApiError(req.__("Invalid refresh token"), 401));
+  if (!refreshToken)
+    return next(new ApiError(req.__("Invalid refresh token"), 401));
 
   const payload = jwt.verify(
     refreshToken,
@@ -256,11 +292,11 @@ export const refreshAccessToken = async (
 
   if (!payload) return next(new ApiError(req.__("Token is not valid"), 401));
 
-  const user = await User.findById(payload.id);
+  const user = await findUserBy({ user_id: payload.id });
   if (!user) return next(new ApiError(req.__("User not found"), 404));
 
   const newAccessToken = await generateAccessToken(
-    user._id.toString(),
+    user.user_id.toString(),
     user.role
   );
 
@@ -272,5 +308,5 @@ export const refreshAccessToken = async (
 export const logout = async (req: Request, res: Response) => {
   res.clearCookie("refreshToken");
   res.clearCookie("accessToken");
-  return success(res, 200, { message: "Logged out successfully" });
+  return success(res, 200, "Logged out successfully");
 };

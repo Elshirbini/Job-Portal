@@ -3,7 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.errorHandling = void 0;
 const logger_1 = require("../config/logger");
 const errorHandling = (err, req, res, next) => {
-    logger_1.errorLogger.error(err);
+    logger_1.logger.error(err);
     err.statusCode = err.statusCode || 500;
     if (process.env.NODE_ENV === "dev") {
         sendErrForDev(err, res);

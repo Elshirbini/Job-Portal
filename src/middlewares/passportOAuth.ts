@@ -1,12 +1,16 @@
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
 import { configDotenv } from "dotenv";
-import { User } from "../user/user.model";
 import { ApiError } from "../utils/apiError";
-import { errorLogger } from "../config/logger";
+import { logger } from "../config/logger";
 import { NextFunction, Request, Response } from "express";
 import { sendToEmails } from "../utils/sendMails";
 import { generateAccessToken } from "../utils/tokens.util";
+import {
+  createUser,
+  findUserBy,
+  findUserByAndUpdate,
+} from "../user/user.repository";
 
 configDotenv();
 
@@ -28,35 +32,33 @@ passport.use(
           return done(new ApiError(req.__("Data is uncompleted"), 400), false);
         }
 
-        let user = await User.findOne({ googleId: profile.id });
+        let user = await findUserBy({ google_id: profile.id });
 
         if (!user) {
-          const existingUser = await User.findOne({
+          const existingUser = await findUserBy({
             email: profile.emails[0].value,
           });
 
           if (existingUser) {
-            // لو فيه يوزر بالإيميل ده، نربط حساب الجوجل بيه
-            existingUser.googleId = profile.id;
-            user = await existingUser.save();
+            user = await findUserByAndUpdate(
+              { user_id: existingUser.user_id },
+              { google_id: profile.id }
+            );
           } else {
-            // مفيش يوزر خالص، نعمل واحد جديد
-            user = await User.create({
-              googleId: profile.id,
-              fullName: `${profile.name.givenName} ${profile.name.familyName}`,
+            user = await createUser({
+              google_id: profile.id,
+              full_name: `${profile.name.givenName} ${profile.name.familyName}`,
               email: profile.emails[0].value,
             });
 
-            await sendToEmails(user.email, "Welcome", user.fullName);
+            await sendToEmails(user.email, "Welcome", user.full_name);
           }
         }
 
-        await user.save();
-
-        const token = await generateAccessToken(user._id.toString(), user.role);
+        const token = await generateAccessToken(user.user_id, user.role);
         return done(null, { token, role: user.role });
       } catch (error) {
-        errorLogger.error(error);
+        logger.error(error);
         return done(error, false);
       }
     }
@@ -71,7 +73,7 @@ export const oAuthenticated = passport.authenticate("google", {
 export const oCallback = (req: Request, res: Response, next: NextFunction) => {
   passport.authenticate("google", { session: false }, (err, user, info) => {
     if (err) {
-      console.error("Passport Error:", err);
+      logger.error("Passport Error:", err);
       return res.redirect(
         (process.env.NODE_ENV === "prod"
           ? process.env.GOOGLE_failed_CALLBACK_URL_PROD
