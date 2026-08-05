@@ -8,6 +8,9 @@ import { ApiError } from "../utils/apiError";
 import { r2Config } from "../config/cloudflare.config";
 import { logger } from "../config/logger";
 
+import { singleton } from "tsyringe";
+
+@singleton()
 export class CloudflareService {
   private readonly s3 = new S3Client({
     region: r2Config.region,

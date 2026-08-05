@@ -6,11 +6,8 @@ import { logger } from "../config/logger";
 import { NextFunction, Request, Response } from "express";
 import { sendToEmails } from "../utils/sendMails";
 import { generateAccessToken } from "../utils/tokens.util";
-import {
-  createUser,
-  findUserBy,
-  findUserByAndUpdate,
-} from "../user/user.repository";
+import { UserRepository } from "../user/user.repository";
+import { container } from "tsyringe";
 
 configDotenv();
 
@@ -32,20 +29,21 @@ passport.use(
           return done(new ApiError(req.__("Data is uncompleted"), 400), false);
         }
 
-        let user = await findUserBy({ google_id: profile.id });
+        const userRepo = container.resolve(UserRepository);
+        let user = await userRepo.findUserBy({ google_id: profile.id });
 
         if (!user) {
-          const existingUser = await findUserBy({
+          const existingUser = await userRepo.findUserBy({
             email: profile.emails[0].value,
           });
 
           if (existingUser) {
-            user = await findUserByAndUpdate(
+            user = await userRepo.findUserByAndUpdate(
               { user_id: existingUser.user_id },
               { google_id: profile.id }
             );
           } else {
-            user = await createUser({
+            user = await userRepo.createUser({
               google_id: profile.id,
               full_name: `${profile.name.givenName} ${profile.name.familyName}`,
               email: profile.emails[0].value,

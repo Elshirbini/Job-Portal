@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { ApiError } from "../utils/apiError";
-import { findUserBy } from "../user/user.repository";
+import { UserRepository } from "../user/user.repository";
+import { container } from "tsyringe";
 
 export const isCompany = async (
   req: Request,
@@ -8,7 +9,7 @@ export const isCompany = async (
   next: NextFunction
 ) => {
   const user_id = req.user_id;
-  const user = await findUserBy({ user_id: user_id });
+  const user = await container.resolve(UserRepository).findUserBy({ user_id: user_id });
   if (!user) throw new ApiError(req.__("User not found"), 404);
 
   if (user.type !== "company") {

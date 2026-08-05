@@ -3,9 +3,11 @@ import { upload } from "../config/multerDisk";
 import { verifyToken } from "../middlewares/verifyToken";
 import { createPostValidator } from "./post.validator";
 import { validateInputs } from "../middlewares/validateInputs";
-import { createPost } from "./post.controller";
+import { PostController } from "./post.controller";
+import { container } from "tsyringe";
 
 const router = express.Router();
+const postController = container.resolve(PostController);
 
 router.use(verifyToken);
 
@@ -18,7 +20,7 @@ router.post(
   ]),
   createPostValidator,
   validateInputs,
-  createPost,
+  postController.createPost,
 );
 
 export const postRoutes = router;

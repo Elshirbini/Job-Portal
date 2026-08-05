@@ -1,15 +1,5 @@
 import express from "express";
-import {
-  forgetPassword,
-  getProfile,
-  login,
-  logout,
-  refreshAccessToken,
-  resetPassword,
-  signup,
-  verifyEmail,
-  verifyOtpForPassword,
-} from "../auth/auth.controller";
+import { AuthController } from "../auth/auth.controller";
 import {
   emailValidator,
   loginValidator,
@@ -26,12 +16,14 @@ import {
 import { verifyToken } from "../middlewares/verifyToken";
 import { upload } from "../config/multerMemory";
 import { validateFiles } from "../middlewares/validateFiles";
+import { container } from "tsyringe";
 
 const router = express.Router();
+const authController = container.resolve(AuthController);
 
-router.get("/profile", verifyToken, getProfile);
+router.get("/profile", verifyToken, authController.getProfile);
 
-router.post("/login", loginValidator, validateInputs, login);
+router.post("/login", loginValidator, validateInputs, authController.login);
 router.post(
   "/signup",
   signupLimiter,
@@ -39,30 +31,30 @@ router.post(
   validateFiles,
   registrationValidation,
   validateInputs,
-  signup
+  authController.signup
 );
 router.post(
   "/verify-email",
   verifyEmailLimiter,
   otpValidator,
   validateInputs,
-  verifyEmail
+  authController.verifyEmail
 );
 
 router.patch(
   "/forget-password",
   emailValidator,
   validateInputs,
-  forgetPassword
+  authController.forgetPassword
 );
-router.post("/verify-otp", otpValidator, validateInputs, verifyOtpForPassword);
+router.post("/verify-otp", otpValidator, validateInputs, authController.verifyOtpForPassword);
 router.patch(
   "/reset-password/:user_id",
   passwordValidator,
   validateInputs,
-  resetPassword
+  authController.resetPassword
 );
-router.post("/refresh-token", refreshAccessToken);
-router.post("/logout", logout);
+router.post("/refresh-token", authController.refreshAccessToken);
+router.post("/logout", authController.logout);
 
 export const authRoutes = router;

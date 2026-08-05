@@ -3,29 +3,23 @@ import { verifyToken } from "../middlewares/verifyToken";
 import { addJobValidation } from "./job.validator";
 import { validateInputs } from "../middlewares/validateInputs";
 import { isCompany } from "../middlewares/isCompany";
-import {
-  addJob,
-  deleteJob,
-  getAllJobs,
-  getJob,
-  saveJob,
-  unsaveJob,
-  updateJob,
-} from "./job.controller";
+import { JobController } from "./job.controller";
+import { container } from "tsyringe";
 
 const router = express.Router();
+const jobController = container.resolve(JobController);
 
 router.use(verifyToken);
 
-router.get("/", getAllJobs);
+router.get("/", jobController.getAllJobs);
 router
   .route("/:id")
-  .get(getJob)
-  .post(isCompany, addJobValidation, validateInputs, addJob)
-  .put(isCompany, addJobValidation, validateInputs, updateJob)
-  .delete(isCompany, deleteJob);
+  .get(jobController.getJob)
+  .post(isCompany, addJobValidation, validateInputs, jobController.addJob)
+  .put(isCompany, addJobValidation, validateInputs, jobController.updateJob)
+  .delete(isCompany, jobController.deleteJob);
 
-router.patch("/save-job/:id", saveJob);
-router.patch("/unsave-job/:id", unsaveJob);
+router.patch("/save-job/:id", jobController.saveJob);
+router.patch("/unsave-job/:id", jobController.unsaveJob);
 
 export const jobRoutes = router;
