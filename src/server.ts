@@ -6,7 +6,7 @@ dotenv.config();
 
 async function start() {
   try {
-    await prisma.$connect();
+    await prisma.$queryRaw`SELECT 1`;
     logger.info("✅ Prisma connected to PostgreSQL successfully!");
 
     app.listen(8080, "0.0.0.0", () => {

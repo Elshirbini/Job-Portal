@@ -1,19 +1,13 @@
-import { configDotenv } from "dotenv";
-import { PrismaClient } from "@prisma/client";
+import "dotenv/config";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { PrismaClient } from "./generated/prisma/client";
 import { logger } from "./config/logger";
-configDotenv();
-if (!process.env.DATABASE_URL) {
-  throw new Error("DATABASE_URL is not set");
-}
 
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL,
-});
+const connectionString = `${process.env.DATABASE_URL}`;
 
-export const prisma = new PrismaClient({
-  adapter,
-  log: ["info", "warn", "error"],
-});
+const adapter = new PrismaPg({ connectionString });
+const prisma = new PrismaClient({ adapter });
 
 logger.info("Prisma Client has been initialized.");
+
+export { prisma };

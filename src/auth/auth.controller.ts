@@ -20,6 +20,7 @@ import { CloudflareService } from "../services/cloudflareR2";
 import { logger } from "../config/logger";
 import { Prisma } from "@prisma/client";
 import { IUser } from "../user/interfaces/user.interface";
+import { prisma } from "../prisma";
 
 const refreshCookieOptions = {
   maxAge: 7 * 24 * 60 * 60 * 1000,
@@ -35,9 +36,9 @@ const accessCookieOptions = {
 } as object;
 
 export const getProfile = async (req: Request, res: Response) => {
-  const userId = req.userId;
+  const user_id = req.user_id;
 
-  const user = await findUserBy({ user_id: userId });
+  const user = await findUserBy({ user_id: user_id });
   if (!user) throw new ApiError(req.__("User not found"), 404);
 
   res.status(200).json({ user });
@@ -59,7 +60,7 @@ export const login = async (req: Request, res: Response) => {
 
   const accessToken = await generateAccessToken(
     user.user_id.toString(),
-    user.role
+    user.role,
   );
   const refreshToken = await generateRefreshToken(user.user_id.toString());
 
@@ -103,7 +104,7 @@ export const signup = async (req: Request, res: Response) => {
     const { url, key } = await cloudflareR2.uploadFileS3(
       file.buffer,
       `profile-images/${Date.now()}`,
-      file.mimetype
+      file.mimetype,
     );
     image.url = url;
     image.key = key;
@@ -152,7 +153,7 @@ export const signup = async (req: Request, res: Response) => {
         </p>
       </div>
     </div>
-  `
+  `,
   );
 
   return success(res, 200, "OTP sent");
@@ -172,7 +173,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
 
   const user = await findUserByAndUpdate(
     { user_id: user_id },
-    { is_verified: true }
+    { is_verified: true },
   );
 
   if (!user) {
@@ -195,7 +196,7 @@ export const verifyEmail = async (req: Request, res: Response) => {
     <hr style="margin: 30px 0;">
     <p style="font-size: 12px; color: #aaa;">Thank you for joining us!</p>
   </div>
-  `
+  `,
   );
 
   return success(res, 201, "Account verified successfully");
@@ -212,7 +213,7 @@ export const forgetPassword = async (req: Request, res: Response) => {
     {
       codeValidation: cryptOtp,
       codeValidationExpire: new Date(Date.now() + 5 * 60 * 1000),
-    }
+    },
   );
 
   if (!user) throw new ApiError(req.__("This email has no account"), 404);
@@ -229,25 +230,25 @@ export const verifyOtpForPassword = async (req: Request, res: Response) => {
 
   const user = await findUserBy({
     codeValidation: cryptOtp,
-    codeValidationExpire: { gt: Date.now() },
+    codeValidationExpire: { gt: new Date() },
   });
 
   if (!user) {
     throw new ApiError(req.__("Invalid or expired verification code"), 401);
   }
 
-  return success(res, 200, { data: { userId: user.user_id } });
+  return success(res, 200, { data: { user_id: user.user_id } });
 };
 
 export const resetPassword = async (req: Request, res: Response) => {
   const { newPassword, confirmNewPassword } = req.body;
-  const { userId } = req.params;
+  const { user_id } = req.params;
 
   if (newPassword !== confirmNewPassword) {
     throw new ApiError(req.__("Password and rePassword must be equal"), 403);
   }
 
-  const userDoc = await findUserBy({ user_id: userId });
+  const userDoc = await findUserBy({ user_id: user_id });
   if (!userDoc || !userDoc.password)
     throw new ApiError(req.__("User not found"), 404);
 
@@ -259,12 +260,12 @@ export const resetPassword = async (req: Request, res: Response) => {
   const hashedPassword = await hash(newPassword, 12);
 
   const user = await findUserByAndUpdate(
-    { user_id: userId },
+    { user_id: user_id },
     {
       password: hashedPassword,
       codeValidation: undefined,
       codeValidationExpire: undefined,
-    }
+    },
   );
 
   if (!user) {
@@ -277,7 +278,7 @@ export const resetPassword = async (req: Request, res: Response) => {
 export const refreshAccessToken = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
   const refreshToken = req.cookies["refreshToken"];
   if (!refreshToken)
@@ -285,7 +286,7 @@ export const refreshAccessToken = async (
 
   const payload = jwt.verify(
     refreshToken,
-    process.env.REFRESH_TOKEN_SECRET!
+    process.env.REFRESH_TOKEN_SECRET!,
   ) as {
     id: string;
   };
@@ -297,7 +298,7 @@ export const refreshAccessToken = async (
 
   const newAccessToken = await generateAccessToken(
     user.user_id.toString(),
-    user.role
+    user.role,
   );
 
   res.cookie("accessToken", newAccessToken, accessCookieOptions);

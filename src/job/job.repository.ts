@@ -1,15 +1,22 @@
-import { Prisma } from "@prisma/client";
+import {
+  JobCreateInput,
+  JobUncheckedCreateInput,
+  JobUncheckedUpdateInput,
+  JobUpdateInput,
+  SavedJobCreateInput,
+  SavedJobUncheckedCreateInput,
+} from "../generated/prisma/models";
 import { prisma } from "../prisma";
 
 export const createJob = async (
-  jobData: Prisma.JobCreateInput | Prisma.JobUncheckedCreateInput
+  jobData: JobCreateInput | JobUncheckedCreateInput,
 ) => {
   return prisma.job.create({ data: jobData });
 };
 
 export const findJobByAndUpdate = async (
   query: any,
-  updateData: Prisma.JobUpdateInput | Prisma.JobUncheckedUpdateInput
+  updateData: JobUpdateInput | JobUncheckedUpdateInput,
 ) => {
   return prisma.job.update({
     where: query,
@@ -35,7 +42,7 @@ export const deleteJobBy = async (query: any) => {
 };
 
 export const createSavedJob = async (
-  savedJobData: Prisma.SavedJobCreateInput | Prisma.SavedJobUncheckedCreateInput
+  savedJobData: SavedJobCreateInput | SavedJobUncheckedCreateInput,
 ) => {
   return prisma.savedJob.create({ data: savedJobData });
 };

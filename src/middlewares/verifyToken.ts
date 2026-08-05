@@ -25,7 +25,7 @@ export const verifyToken = async (
 
   if (!user) return next(new ApiError(req.__("Token is not valid"), 401));
 
-  req.userId = user.id;
+  req.user_id = user.id;
   req.userRole = user.role;
 
   const userDoc = await findUserBy({ user_id: user.id });

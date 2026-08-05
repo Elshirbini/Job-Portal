@@ -23,12 +23,12 @@ export const addJob = async (req: Request, res: Response) => {
     employmentType,
   } = req.body;
   const { id } = req.params;
-  const userId = req.userId;
+  const user_id = req.user_id;
 
-  if (id !== userId) throw new ApiError(req.__("wrong credentials"), 404);
+  if (id !== user_id) throw new ApiError(req.__("wrong credentials"), 404);
 
   await createJob({
-    user_id: userId,
+    user_id: user_id,
     title,
     description,
     requirements,
@@ -54,10 +54,10 @@ export const updateJob = async (req: Request, res: Response) => {
     employmentType,
   } = req.body;
   const { id } = req.params;
-  const userId = req.userId;
+  const user_id = req.user_id;
 
   const job = await findJobByAndUpdate(
-    { job_id: id, user_id: userId },
+    { job_id: id, user_id: user_id },
     {
       title,
       description,
@@ -77,9 +77,9 @@ export const updateJob = async (req: Request, res: Response) => {
 
 export const deleteJob = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const userId = req.userId;
+  const user_id = req.user_id;
 
-  const job = await deleteJobBy({ job_id: id, user_id: userId });
+  const job = await deleteJobBy({ job_id: id, user_id: user_id });
 
   if (!job) throw new ApiError(req.__("Job not found"), 404);
 
@@ -104,13 +104,13 @@ export const getAllJobs = async (req: Request, res: Response) => {
 
 export const saveJob = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const userId = req.userId!;
+  const user_id = req.user_id!;
 
   const job = await findJobBy({ job_id: id });
   if (!job) throw new ApiError(req.__("Job not found"), 404);
 
   await createSavedJob({
-    user_id: userId,
+    user_id: user_id,
     job_id: id,
   });
 
@@ -121,12 +121,12 @@ export const saveJob = async (req: Request, res: Response) => {
 
 export const unsaveJob = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const userId = req.userId;
+  const user_id = req.user_id;
 
   const job = await findJobBy({ job_id: id });
   if (!job) throw new ApiError(req.__("Job not found"), 404);
 
-  const savedJob = await deleteSavedJobBy({ user_id: userId, job_id: id });
+  const savedJob = await deleteSavedJobBy({ user_id: user_id, job_id: id });
   if (!savedJob) {
     throw new ApiError(req.__("Saved job record not found"), 404);
   }

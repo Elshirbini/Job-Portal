@@ -6,6 +6,7 @@ import {
 } from "@aws-sdk/client-s3";
 import { ApiError } from "../utils/apiError";
 import { r2Config } from "../config/cloudflare.config";
+import { logger } from "../config/logger";
 
 export class CloudflareService {
   private readonly s3 = new S3Client({
@@ -31,7 +32,7 @@ export class CloudflareService {
         key,
       };
     } catch (error) {
-      console.error("Error in uploading image to s3", error);
+      logger.error("Error in uploading image to s3", error);
       throw new ApiError("فشل رفع الملف إلى S3", 500);
     }
   }

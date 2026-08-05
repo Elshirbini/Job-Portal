@@ -1,15 +1,22 @@
-import { Prisma } from "@prisma/client";
 import { prisma } from "../prisma";
+import {
+  UserCreateInput,
+  UserUncheckedCreateInput,
+  UserUncheckedUpdateInput,
+  UserUpdateInput,
+  UserWhereInput,
+  UserWhereUniqueInput,
+} from "../generated/prisma/models/User";
 
 export const createUser = async (
-  userData: Prisma.UserCreateInput | Prisma.UserUncheckedCreateInput
+  userData: UserCreateInput | UserUncheckedCreateInput,
 ) => {
   return prisma.user.create({ data: userData });
 };
 
 export const findUserByAndUpdate = async (
-  query: any,
-  updateData: Prisma.UserUpdateInput | Prisma.UserUncheckedUpdateInput
+  query: UserWhereUniqueInput,
+  updateData: UserUpdateInput | UserUncheckedUpdateInput,
 ) => {
   return prisma.user.update({
     where: query,
@@ -17,8 +24,6 @@ export const findUserByAndUpdate = async (
   });
 };
 
-export const findUserBy = async (query: any) => {
+export const findUserBy = async (query: UserWhereInput) => {
   return prisma.user.findFirst({ where: query });
 };
-
-

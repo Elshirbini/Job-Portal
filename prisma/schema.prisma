@@ -1,6 +1,7 @@
 generator client {
-  provider = "prisma-client-js"
-}
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+} 
 
 datasource db {
   provider = "postgresql"
@@ -33,6 +34,12 @@ enum Privacy {
   public
   friends
   private
+}
+
+enum Status {
+  completed
+  processing
+  failed
 }
 
 model User {
@@ -89,7 +96,7 @@ model SavedJob {
   @@unique([user_id, job_id])
 }
 
-model JobImage {
+model PostImage {
   id String @id @default(uuid()) @db.Uuid
 
   post    Post   @relation(fields: [post_id], references: [post_id], onDelete: Cascade)
@@ -109,11 +116,13 @@ model Post {
 
   privacy  Privacy    @default(public)
   text     String
-  images   JobImage[]
+  images   PostImage[]
   videoKey String?
   videoUrl String?
   docKey   String?
   docUrl   String?
+
+  status Status
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt

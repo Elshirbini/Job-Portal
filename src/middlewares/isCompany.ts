@@ -7,8 +7,8 @@ export const isCompany = async (
   res: Response,
   next: NextFunction
 ) => {
-  const userId = req.userId;
-  const user = await findUserBy({ user_id: userId });
+  const user_id = req.user_id;
+  const user = await findUserBy({ user_id: user_id });
   if (!user) throw new ApiError(req.__("User not found"), 404);
 
   if (user.type !== "company") {

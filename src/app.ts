@@ -12,6 +12,7 @@ import { userRoutes } from "./user/user.routes";
 import { jobRoutes } from "./job/job.routes";
 import i18n from "./config/i18n";
 import { postRoutes } from "./post/post.routes";
+import { meetingRoutes } from "./meeting/metting.routes";
 configDotenv();
 
 const app = express();
@@ -26,7 +27,7 @@ app.use(
     origin: ["http://localhost:5173", "http://localhost:8080"],
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],
     credentials: true,
-  })
+  }),
 );
 app.use(cookieParser());
 app.use(express.json());
@@ -49,7 +50,7 @@ app.use(
     permittedCrossDomainPolicies: { permittedPolicies: "none" },
     referrerPolicy: { policy: "strict-origin-when-cross-origin" },
     xssFilter: true,
-  })
+  }),
 );
 app.use(i18n.init);
 
@@ -59,6 +60,7 @@ app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/user", userRoutes);
 app.use("/api/v1/job", jobRoutes);
 app.use("/api/v1/post", postRoutes);
+app.use("/api/v1/meeting", meetingRoutes);
 
 // app.use(express.static(path.join(__dirname, "dist")));
 

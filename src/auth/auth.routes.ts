@@ -57,7 +57,7 @@ router.patch(
 );
 router.post("/verify-otp", otpValidator, validateInputs, verifyOtpForPassword);
 router.patch(
-  "/reset-password/:userId",
+  "/reset-password/:user_id",
   passwordValidator,
   validateInputs,
   resetPassword
