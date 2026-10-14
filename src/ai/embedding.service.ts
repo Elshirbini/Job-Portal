@@ -1,55 +1,33 @@
-import { GoogleGenAI } from "@google/genai";
 import { injectable } from "tsyringe";
-import { ApiError } from "../utils/apiError";
-import { logger } from "../config/logger";
+import { GoogleGenerativeAIEmbeddings } from "@langchain/google-genai";
 
 @injectable()
 export class EmbeddingService {
-  private readonly gemini: GoogleGenAI;
-  private readonly model: string;
+  private readonly embeddings: GoogleGenerativeAIEmbeddings;
 
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY;
-    const model = process.env.GEMINI_EMBEDDING_MODEL;
 
-    if (!apiKey || !model) {
-      throw new Error("Missing Gemini embedding configuration");
+    if (!apiKey) {
+      throw new Error("Missing GEMINI_API_KEY configuration");
     }
 
-    this.gemini = new GoogleGenAI({ apiKey });
-    this.model = model;
+    this.embeddings = new GoogleGenerativeAIEmbeddings({
+      apiKey,
+      model: "gemini-embedding-001",
+      outputDimensionality: 768,
+    });
   }
 
   async embedText(text: string): Promise<number[]> {
-    try {
-      const response = await this.gemini.models.embedContent({
-        model: this.model,
-        contents: text,
-      });
+    return this.embeddings.embedQuery(text);
+  }
 
-      const values = response.embeddings?.[0]?.values;
+  async embedDocuments(texts: string[]): Promise<number[][]> {
+    return this.embeddings.embedDocuments(texts);
+  }
 
-      if (!values?.length) {
-        throw new ApiError("The embedding model returned an empty vector", 502);
-      }
-
-      return values;
-    } catch (error) {
-      if (error instanceof ApiError) {
-        throw error;
-      }
-
-      logger.error("Failed to generate embedding", {
-        error:
-          error instanceof Error
-            ? {
-                name: error.name,
-                message: error.message,
-              }
-            : "Unknown error",
-      });
-
-      throw new ApiError("Embedding provider request failed", 502);
-    }
+  getEmbeddings(): GoogleGenerativeAIEmbeddings {
+    return this.embeddings;
   }
 }

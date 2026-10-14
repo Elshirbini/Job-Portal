@@ -31,6 +31,8 @@ export async function validateUploadedFile(
 
   const fileType = await FileType.fileTypeFromBuffer(buffer);
 
+  console.log(`File type for ${fieldName}:`, fileType);
+
   if (!fileType || !options.allowedMimeTypes.includes(fileType.mime)) {
     throw new ApiError(
       `نوع الملف ${fieldName} غير مسموح به: ${fileType?.mime}`,

@@ -15,6 +15,8 @@ import { postRoutes } from "./post/post.routes";
 import { meetingRoutes } from "./meeting/metting.routes";
 import { crawlerRoutes } from "./crawler/crawler.route";
 import { aiRoutes } from "./ai/ai.routes";
+import { ragRoutes } from "./rag/rag.routes";
+import { QdrantService } from "./rag/services/qdrant.service";
 configDotenv();
 
 const app = express();
@@ -57,6 +59,8 @@ app.use(
 app.use(i18n.init);
 
 //                                 **ROUTES**
+// const service = new QdrantService();
+// service.verifyConnection();
 
 app.use("/api/v1/auth", authRoutes);
 app.use("/api/v1/user", userRoutes);
@@ -65,6 +69,7 @@ app.use("/api/v1/post", postRoutes);
 app.use("/api/v1/meeting", meetingRoutes);
 app.use("/api/v1/crawler", crawlerRoutes);
 app.use("/api/v1/ai", aiRoutes);
+app.use("/api/v1/rag", ragRoutes);
 
 // app.use(express.static(path.join(__dirname, "dist")));
 
