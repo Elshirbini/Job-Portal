@@ -62,3 +62,13 @@ export type PostImage = Prisma.PostImageModel
  * 
  */
 export type Post = Prisma.PostModel
+/**
+ * Model Document
+ * 
+ */
+export type Document = Prisma.DocumentModel
+/**
+ * Model DocumentChunk
+ * 
+ */
+export type DocumentChunk = Prisma.DocumentChunkModel
