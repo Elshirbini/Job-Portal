@@ -13,6 +13,8 @@ import { jobRoutes } from "./job/job.routes";
 import i18n from "./config/i18n";
 import { postRoutes } from "./post/post.routes";
 import { meetingRoutes } from "./meeting/metting.routes";
+import { crawlerRoutes } from "./crawler/crawler.route";
+import { aiRoutes } from "./ai/ai.routes";
 configDotenv();
 
 const app = express();
@@ -61,6 +63,8 @@ app.use("/api/v1/user", userRoutes);
 app.use("/api/v1/job", jobRoutes);
 app.use("/api/v1/post", postRoutes);
 app.use("/api/v1/meeting", meetingRoutes);
+app.use("/api/v1/crawler", crawlerRoutes);
+app.use("/api/v1/ai", aiRoutes);
 
 // app.use(express.static(path.join(__dirname, "dist")));
 
