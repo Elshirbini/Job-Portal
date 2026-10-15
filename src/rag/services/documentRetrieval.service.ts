@@ -1,11 +1,11 @@
 import { injectable } from "tsyringe";
-import { QdrantVectorStoreService } from "./qdrantVectorStore.service";
+import { DocumentChunksRepository } from "../repositories/documentChunks.repository";
 import { RetrievalResult } from "../types/retrievalResult.type";
 
 @injectable()
 export class DocumentRetrievalService {
   constructor(
-    private readonly qdrantVectorStoreService: QdrantVectorStoreService,
+    private readonly documentChunksRepository: DocumentChunksRepository,
   ) {}
 
   async retrieve(query: string, limit = 5): Promise<RetrievalResult[]> {
@@ -19,17 +19,7 @@ export class DocumentRetrievalService {
       throw new Error("Limit must be an integer between 1 and 20");
     }
 
-    const vectorStore = await this.qdrantVectorStoreService.getVectorStore();
-
-    const results = await vectorStore.similaritySearchWithScore(
-      normalizedQuery,
-      limit,
-    );
-
-    return results.map(([document, score]) => ({
-      content: document.pageContent,
-      metadata: document.metadata,
-      score,
-    }));
+    return this.documentChunksRepository.searchSimilar(normalizedQuery, limit);
   }
 }
+

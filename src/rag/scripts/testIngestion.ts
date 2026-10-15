@@ -2,11 +2,15 @@ import "reflect-metadata";
 import { container } from "tsyringe";
 import { prisma } from "../../prisma";
 import { DocumentIngestionService } from "../services/documentIngestion.service";
+import { DocumentRepository } from "../repositories/document.repository";
+import { DocumentChunksRepository } from "../repositories/documentChunks.repository";
 import { qdrant, QDRANT_COLLECTION } from "../../config/qdrant.config";
 
 async function main(): Promise<void> {
   await ensureDocumentIdIndex();
   const ingestionService = container.resolve(DocumentIngestionService);
+  const documentRepository = container.resolve(DocumentRepository);
+  const documentChunksRepository = container.resolve(DocumentChunksRepository);
 
   const filename = `rag-test-${Date.now()}.txt`;
 
@@ -25,23 +29,12 @@ It helps services communicate without requiring both services to be available at
 
   const documentId = await ingestionService.ingestText(filename, content);
 
-  const document = await prisma.document.findUniqueOrThrow({
-    where: { id: documentId },
-  });
+  const document = await documentRepository.findDocumentByIdOrThrow(documentId);
 
-  const points = await qdrant.scroll(QDRANT_COLLECTION, {
-    filter: {
-      must: [
-        {
-          key: "metadata.documentId",
-          match: { value: documentId },
-        },
-      ],
-    },
-    limit: 100,
-    with_payload: true,
-    with_vector: false,
-  });
+  const points = await documentChunksRepository.findChunksByDocumentId(
+    documentId,
+    100,
+  );
 
   const pointsAfter = await qdrant.getCollection(QDRANT_COLLECTION);
 
@@ -53,10 +46,10 @@ It helps services communicate without requiring both services to be available at
           filename: document.filename,
           status: document.status,
         },
-        chunksStored: points.points.length,
+        chunksStored: points.length,
         totalPointsBefore: pointsBefore.points_count,
         totalPointsAfter: pointsAfter.points_count,
-        samplePayload: points.points[0]?.payload,
+        samplePayload: points[0]?.payload,
       },
       null,
       2,
@@ -67,7 +60,7 @@ It helps services communicate without requiring both services to be available at
     throw new Error("Document ingestion did not complete");
   }
 
-  if (points.points.length === 0) {
+  if (points.length === 0) {
     throw new Error("No Qdrant points were found for the ingested document");
   }
 }

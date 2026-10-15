@@ -1,15 +1,16 @@
 import { injectable } from "tsyringe";
 import { Document as LangChainDocument } from "@langchain/core/documents";
 
-import { prisma } from "../../prisma";
 import { DocumentChunkingService } from "./documentChunking.service";
-import { QdrantVectorStoreService } from "./qdrantVectorStore.service";
+import { DocumentRepository } from "../repositories/document.repository";
+import { DocumentChunksRepository } from "../repositories/documentChunks.repository";
 
 @injectable()
 export class DocumentIngestionService {
   constructor(
     private readonly documentChunkingService: DocumentChunkingService,
-    private readonly qdrantVectorStoreService: QdrantVectorStoreService,
+    private readonly documentRepository: DocumentRepository,
+    private readonly documentChunksRepository: DocumentChunksRepository,
   ) {}
 
   async ingestText(
@@ -27,12 +28,10 @@ export class DocumentIngestionService {
       throw new Error("Document content cannot be empty");
     }
 
-    const document = await prisma.document.create({
-      data: {
-        filename,
-        mimeType,
-        status: "PROCESSING",
-      },
+    const document = await this.documentRepository.createDocument({
+      filename,
+      mimeType,
+      status: "PROCESSING",
     });
 
     try {
@@ -51,23 +50,16 @@ export class DocumentIngestionService {
           }),
       );
 
-      const vectorStore = await this.qdrantVectorStoreService.getVectorStore();
+      await this.documentChunksRepository.saveChunks(langChainDocuments);
 
-      await vectorStore.addDocuments(langChainDocuments);
-
-      await prisma.document.update({
-        where: { id: document.id },
-        data: { status: "COMPLETED" },
-      });
+      await this.documentRepository.updateStatus(document.id, "COMPLETED");
 
       return document.id;
     } catch (error: unknown) {
-      await prisma.document.update({
-        where: { id: document.id },
-        data: { status: "FAILED" },
-      });
+      await this.documentRepository.updateStatus(document.id, "FAILED");
 
       throw error;
     }
   }
 }
+

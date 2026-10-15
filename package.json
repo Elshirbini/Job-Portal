@@ -6,7 +6,8 @@
     "dev": "nodemon",
     "worker:media": "ts-node src/jobs/media/media.worker.ts",
     "build": "tsc",
-    "start": "node build/server.js"
+    "start": "node build/server.js",
+    "format": "prisma format"
   },
   "author": "",
   "license": "MIT",

@@ -1,7 +1,7 @@
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
-} 
+}
 
 datasource db {
   provider = "postgresql"
@@ -121,7 +121,7 @@ model Post {
   user    User   @relation(fields: [user_id], references: [user_id], onDelete: Cascade)
   user_id String @db.Uuid
 
-  privacy  Privacy    @default(public)
+  privacy  Privacy     @default(public)
   text     String
   images   PostImage[]
   videoKey String?
@@ -136,12 +136,12 @@ model Post {
 }
 
 model Document {
-  id        String         @id @default(uuid()) @db.Uuid
-  filename  String
-  mimeType  String         @default("text/plain") @map("mime_type")
-  status    DocumentStatus @default(PENDING)
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  id         String         @id @default(uuid()) @db.Uuid
+  filename   String
+  mimeType   String         @default("text/plain") @map("mime_type")
+  status     DocumentStatus @default(PENDING)
+  created_at DateTime       @default(now())
+  updated_at DateTime       @updatedAt
 
   @@map("documents")
 }
