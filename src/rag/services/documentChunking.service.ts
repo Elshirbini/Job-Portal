@@ -7,8 +7,8 @@ export class DocumentChunkingService {
 
   constructor() {
     this.splitter = new RecursiveCharacterTextSplitter({
-      chunkSize: 100,
-      chunkOverlap: 20,
+      chunkSize: 1000,
+      chunkOverlap: 200,
       separators: ["\n\n", "\n", " ", ""],
     });
   }

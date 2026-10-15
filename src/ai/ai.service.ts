@@ -7,9 +7,11 @@ import { AIToolService } from "./ai.tool.service";
 import { getOrderStatusDeclaration } from "./ai.tools";
 import { ORDER_ASSISTANT_INSTRUCTION } from "./prompts/order-assistant.prompt";
 import { GENERAL_ASSISTANT_INSTRUCTION } from "./prompts/general-assistant.prompt";
+import { RAG_ASSISTANT_INSTRUCTION } from "./prompts/rag-assistant.prompt";
 import { activeCandidateAnalysisPrompt } from "./prompts/candidate-analysis";
 import { cosineSimilarity } from "../utils/cosine-similarity";
 import { EmbeddingService } from "./embedding.service";
+import { RetrievalResult } from "../rag/types/retrievalResult.type";
 
 @singleton()
 export class AIService {
@@ -296,5 +298,59 @@ export class AIService {
     return {
       similarity: Number(similarity.toFixed(4)),
     };
+  }
+
+  /**
+   * Answers a user question strictly grounded on the provided retrieval chunks.
+   * The model is instructed not to go beyond the given context.
+   */
+  async answerWithContext(
+    query: string,
+    context: RetrievalResult[],
+  ): Promise<string> {
+    if (context.length === 0) {
+      return "I don't have enough information in the provided documents to answer that question.";
+    }
+
+    // Build a readable context block from the retrieved chunks
+    const contextBlock = context
+      .map(
+        (chunk, i) =>
+          `--- Source ${i + 1} (score: ${chunk.score.toFixed(4)}, file: ${chunk.metadata["filename"] ?? "unknown"}) ---\n${chunk.content}`,
+      )
+      .join("\n\n");
+
+    const userMessage = `Context:\n${contextBlock}\n\nQuestion:\n${query}`;
+
+    try {
+      const response = await this.gemini.models.generateContent({
+        model: this.model,
+        contents: userMessage,
+        config: {
+          systemInstruction: RAG_ASSISTANT_INSTRUCTION,
+          maxOutputTokens: 1024,
+        },
+      });
+
+      const text = response.text?.trim();
+
+      if (!text) {
+        logger.warn("RAG assistant returned an empty response");
+        throw new ApiError("The AI model returned an empty response", 502);
+      }
+
+      return text;
+    } catch (error: unknown) {
+      if (error instanceof ApiError) throw error;
+
+      logger.error("RAG assistant request failed", {
+        error:
+          error instanceof Error
+            ? { name: error.name, message: error.message }
+            : "Unknown error",
+      });
+
+      throw new ApiError("AI provider request failed", 502);
+    }
   }
 }
