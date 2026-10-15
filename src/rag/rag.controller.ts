@@ -1,14 +1,17 @@
 import { injectable } from "tsyringe";
 import { Request, Response } from "express";
 import { DocumentIngestionService } from "./services/documentIngestion.service";
+import { DocumentRetrievalService } from "./services/documentRetrieval.service";
+import { AIService } from "../ai/ai.service";
 import { success } from "../utils/response";
 import { ApiError } from "../utils/apiError";
-import { validateUploadedFile } from "../utils/file-validation.util";
 
 @injectable()
 export class RagController {
   constructor(
     private readonly documentIngestionService: DocumentIngestionService,
+    private readonly documentRetrievalService: DocumentRetrievalService,
+    private readonly aiService: AIService,
   ) {}
 
   /**
@@ -18,18 +21,10 @@ export class RagController {
    * ingests it through the RAG pipeline (chunk → embed → store in Qdrant),
    * and persists document metadata in the DB.
    *
-   * Returns the created document id and filename on success.
+   * Response: 201 { documentId, filename, message }
    */
   async ingestTextFile(req: Request, res: Response): Promise<void> {
-    const file = req.file!;
-
-    if (file.mimetype !== "text/plain") {
-      throw new ApiError("Only plain-text (.txt) files are allowed.", 422);
-    }
-
-    if (file.size > 1 * 1024 * 1024) {
-      throw new ApiError("File size exceeds the 1 MB limit.", 422);
-    }
+    const file = req.file!; // guaranteed by validateTextFile middleware
 
     const filename = file.originalname.trim();
     const content = file.buffer.toString("utf-8");
@@ -48,6 +43,41 @@ export class RagController {
       documentId,
       filename,
       message: "File ingested successfully and is now indexed.",
+    });
+  }
+
+  /**
+   * POST /api/v1/rag/chat
+   *
+   * AI chatbot endpoint that answers questions strictly grounded on
+   * the indexed documents stored in the vector store.
+   *
+   * Flow:
+   *   1. Embed the user's query
+   *   2. Retrieve the top-k most relevant chunks from Qdrant
+   *   3. Feed chunks as context to Gemini with a strict RAG system prompt
+   *   4. Return the AI answer + the source chunks used
+   *
+   * Body:
+   *   query  – required – natural-language question (max 1000 chars)
+   *   limit  – optional – number of context chunks to retrieve (1-20, default 5)
+   *
+   * Response: 200 { answer: string, sources: RetrievalResult[] }
+   */
+  async chat(req: Request, res: Response): Promise<void> {
+    const query: string = req.body.query.trim();
+    const limit: number = req.body.limit ?? 5;
+
+    // Step 1 & 2: semantic search → retrieve relevant chunks
+    const sources = await this.documentRetrievalService.retrieve(query, limit);
+
+    // Step 3: generate a grounded AI answer from those chunks
+    const answer = await this.aiService.answerWithContext(query, sources);
+
+    // Step 4: return answer + source transparency
+    success(res, 200, {
+      answer,
+      sources,
     });
   }
 }
