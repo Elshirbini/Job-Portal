@@ -12,16 +12,31 @@ const ragController = container.resolve(RagController);
 /**
  * POST /api/v1/rag/documents
  *
- * Ingests a plain-text (.txt) file into the RAG vector store.
+ * Ingests a plain-text (.txt) file into the RAG vector store asynchronously.
+ * The file is validated, a PENDING record is created in PostgreSQL,
+ * then an ingestion job is published to RabbitMQ.
  *
  * Request  : multipart/form-data  { file: <text/plain, max 1 MB> }
- * Response : 201 { documentId, filename, message }
+ * Response : 202 { documentId, filename, message }
  */
 router.post(
   "/documents",
   upload.single("file"),
   validateTextFile,
   ragController.ingestTextFile.bind(ragController),
+);
+
+/**
+ * GET /api/v1/rag/documents/:id
+ *
+ * Polls the processing status of a submitted document.
+ *
+ * Response : 200 { id, filename, status, createdAt, updatedAt }
+ *   status : "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED"
+ */
+router.get(
+  "/documents/:id",
+  ragController.getDocumentStatus.bind(ragController),
 );
 
 /**

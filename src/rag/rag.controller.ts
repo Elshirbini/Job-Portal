@@ -2,6 +2,7 @@ import { injectable } from "tsyringe";
 import { Request, Response } from "express";
 import { DocumentIngestionService } from "./services/documentIngestion.service";
 import { DocumentRetrievalService } from "./services/documentRetrieval.service";
+import { DocumentRepository } from "./repositories/document.repository";
 import { AIService } from "../ai/ai.service";
 import { success } from "../utils/response";
 import { ApiError } from "../utils/apiError";
@@ -11,17 +12,24 @@ export class RagController {
   constructor(
     private readonly documentIngestionService: DocumentIngestionService,
     private readonly documentRetrievalService: DocumentRetrievalService,
+    private readonly documentRepository: DocumentRepository,
     private readonly aiService: AIService,
   ) {}
 
   /**
    * POST /api/v1/rag/documents
    *
-   * Accepts a single .txt file (multipart/form-data, field name: "file"),
-   * ingests it through the RAG pipeline (chunk → embed → store in Qdrant),
-   * and persists document metadata in the DB.
+   * Accepts a single .txt file (multipart/form-data, field name: "file").
    *
-   * Response: 201 { documentId, filename, message }
+   * Flow:
+   *   1. Validate file (done by validateTextFile middleware)
+   *   2. Deduplication check — 409 if already indexed
+   *   3. Persist a PENDING document record in PostgreSQL
+   *   4. Publish an ingestion job to RabbitMQ → return 202 immediately
+   *
+   * The actual chunking + embedding happens asynchronously in rag.worker.ts.
+   *
+   * Response: 202 { documentId, filename, message }
    */
   async ingestTextFile(req: Request, res: Response): Promise<void> {
     const file = req.file!; // guaranteed by validateTextFile middleware
@@ -33,16 +41,42 @@ export class RagController {
       throw new ApiError("The uploaded file is empty.", 422);
     }
 
-    const documentId = await this.documentIngestionService.ingestText(
+    const documentId = await this.documentIngestionService.enqueue(
       filename,
       content,
       file.mimetype,
     );
 
-    success(res, 201, {
+    success(res, 202, {
       documentId,
       filename,
-      message: "File ingested successfully and is now indexed.",
+      message:
+        "File accepted and queued for indexing. Poll /api/v1/rag/documents/:id for status.",
+    });
+  }
+
+  /**
+   * GET /api/v1/rag/documents/:id
+   *
+   * Returns the current processing status of a previously submitted document.
+   *
+   * Response: 200 { id, filename, status, createdAt, updatedAt }
+   */
+  async getDocumentStatus(req: Request, res: Response): Promise<void> {
+    const { id } = req.params;
+
+    const document = await this.documentRepository.findDocumentById(id);
+
+    if (!document) {
+      throw new ApiError(`Document with id "${id}" not found.`, 404);
+    }
+
+    success(res, 200, {
+      id: document.id,
+      filename: document.filename,
+      status: document.status,
+      createdAt: document.createdAt,
+      updatedAt: document.updatedAt,
     });
   }
 

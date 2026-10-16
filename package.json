@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "nodemon",
     "worker:media": "ts-node src/jobs/media/media.worker.ts",
+    "worker:rag": "ts-node src/jobs/rag/rag.worker.ts",
     "build": "tsc",
     "start": "node build/server.js",
     "format": "prisma format"

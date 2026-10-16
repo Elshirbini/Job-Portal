@@ -51,6 +51,19 @@ export class DocumentRepository {
     });
   }
 
+  /**
+   * Used to detect duplicate submissions.
+   * Returns the first document that matches the given filename and status.
+   */
+  async findDocumentByFilenameAndStatus(
+    filename: string,
+    status: DocumentStatus,
+  ) {
+    return prisma.document.findFirst({
+      where: { filename, status },
+    });
+  }
+
   async deleteDocument(where: DocumentWhereUniqueInput) {
     return prisma.document.delete({
       where,
